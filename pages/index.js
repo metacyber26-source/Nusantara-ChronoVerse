@@ -1,24 +1,53 @@
 import { useState, useEffect } from 'react';
 
-export default function GameKutaiEra() {
+export default function GameKutaiAdventure() {
   const [player, setPlayer] = useState({
     username: 'Pengelana_Nusantara',
     currentEra: 'Kutai Martadipura (Abad ke-4 M)',
-    reputation: 10,
-    kepingCoin: 100.00,
+    reputation: 15,
+    kepingCoin: 110.00,
   });
 
   const [loading, setLoading] = useState(true);
   const [isCompleted, setIsCompleted] = useState(false);
-  const [logs, setLogs] = useState([
-    'Selamat datang di tepi Sungai Mahakam. Selesaikan syarat kelulusan era ini untuk membuka Era Sriwijaya & Mataram Kuno!'
+  
+  // Status Narasi Petualangan Saat Ini
+  const [adventureStory, setAdventureStory] = useState(
+    'Kamu berdiri di tepi Sungai Mahakam yang deras. Para pendeta Brahmana sedang memimpin upacara suci di tanah Waprakeswara. Apa yang ingin kamu lakukan?'
+  );
+  
+  const [choices, setChoices] = useState([
+    {
+      id: 1,
+      text: '📜 Menawarkan diri membantu Brahmana mengukir Prasasti Yupa',
+      repChange: 5,
+      coinChange: 15,
+      storyResult: 'Kamu berhasil mengukir silsilah Raja Mulawarman dengan teliti di atas batu. Para pendeta memujimu!'
+    },
+    {
+      id: 2,
+      text: '⛵ Menjelajahi pedagang sungai dan barter hasil rempah',
+      repChange: 2,
+      coinChange: 25,
+      storyResult: 'Kamu sukses berdagang dengan saudagar asing yang berlabuh di muara sungai.'
+    },
+    {
+      id: 3,
+      text: '🐄 Menyumbangkan ternak sapi untuk korban kekeringan rakyat',
+      repChange: 15,
+      coinChange: -30,
+      storyResult: 'Rakyat jelata bersorak gembira atas kedermawananmu! Reputasimu melonjak di hadapan istana.'
+    }
   ]);
 
-  // Syarat kelulusan Era Kutai
+  const [logs, setLogs] = useState([
+    'Petualangan dimulai di tanah subur Kutai Martadipura.'
+  ]);
+
   const TARGET_REPUTATION = 50;
   const TARGET_COIN = 150;
 
-  // Load data dari Neon saat pertama dibuka
+  // Load data dari database Neon
   useEffect(() => {
     fetch('/api/player')
       .then((res) => res.json())
@@ -30,16 +59,12 @@ export default function GameKutaiEra() {
             reputation: data.reputation_score,
             kepingCoin: parseFloat(data.keping_coin),
           });
-          if (data.reputation_score >= TARGET_REPUTATION && parseFloat(data.keping_coin) >= TARGET_COIN) {
-            setIsCompleted(true);
-          }
         }
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
-  // Simpan data setiap ada perubahan
   const saveToDatabase = async (newRep, newCoin) => {
     try {
       await fetch('/api/player', {
@@ -48,121 +73,129 @@ export default function GameKutaiEra() {
         body: JSON.stringify({ reputation: newRep, kepingCoin: newCoin }),
       });
     } catch (err) {
-      console.error('Gagal menyimpan ke Neon:', err);
+      console.error('Gagal simpan:', err);
     }
   };
 
-  // Aksi 1: Ukir Yupa
-  const handleUkirYupa = () => {
-    const newRep = player.reputation + 5;
-    const newCoin = player.kepingCoin + 15;
-    setPlayer((prev) => ({ ...prev, reputation: newRep, kepingCoin: newCoin }));
-    setLogs((prev) => [
-      '📜 Kamu mengukir prasasti batu Yupa! (+5 Reputasi, +15 Keping Coin)',
-      ...prev,
-    ]);
-    checkEraCompletion(newRep, newCoin);
-    saveToDatabase(newRep, newCoin);
-  };
-
-  // Aksi 2: Persembahkan Sapi
-  const handleTernakSapi = () => {
-    if (player.kepingCoin < 20) {
-      setLogs((prev) => ['⚠️ Keping Coin tidak cukup untuk membeli hewan ternak (butuh 20 Coin)!', ...prev]);
+  // Pilih Tindakan Petualangan
+  const handleChoice = (choice) => {
+    if (player.kepingCoin + choice.coinChange < 0) {
+      alert('Keping Coin kamu tidak mencukupi untuk pilihan ini!');
       return;
     }
-    const newRep = player.reputation + 10;
-    const newCoin = player.kepingCoin - 20;
+
+    const newRep = player.reputation + choice.repChange;
+    const newCoin = player.kepingCoin + choice.coinChange;
+
     setPlayer((prev) => ({ ...prev, reputation: newRep, kepingCoin: newCoin }));
+    setAdventureStory(choice.storyResult);
+    
     setLogs((prev) => [
-      '🐄 Kamu mempersembahkan sapi di Waprakeswara atas nama Raja Mulawarman! (+10 Reputasi, -20 Coin)',
+      `[Petualangan] ${choice.storyResult} (Rep: ${choice.repChange > 0 ? '+' : ''}${choice.repChange}, Coin: ${choice.coinChange > 0 ? '+' : ''}${choice.coinChange})`,
       ...prev,
     ]);
-    checkEraCompletion(newRep, newCoin);
-    saveToDatabase(newRep, newCoin);
-  };
 
-  // Cek Syarat Kelulusan Era
-  const checkEraCompletion = (rep, coin) => {
-    if (rep >= TARGET_REPUTATION && coin >= TARGET_COIN && !isCompleted) {
+    if (newRep >= TARGET_REPUTATION && newCoin >= TARGET_COIN) {
       setIsCompleted(true);
-      setLogs((prev) => [
-        '🎉 SELAMAT! Kamu telah menyelesaikan syarat peradaban Era Kutai Martadipura!',
-        '🏆 Kamu berhak mendapatkan NFT Prasasti Yupa & Sertifikat Pengelana Mahakam.',
-        ...prev,
-      ]);
     }
+
+    saveToDatabase(newRep, newCoin);
   };
 
   if (loading) {
-    return <div style={{ padding: '20px', textAlign: 'center' }}>Memuat data kerajaan...</div>;
+    return <div style={{ padding: '20px', textAlign: 'center', color: '#fff', background: '#1c1917', minHeight: '100vh' }}>Menyiapkan peta petualangan...</div>;
   }
 
   return (
-    <div style={{ maxWidth: '450px', margin: '0 auto', padding: '16px', fontFamily: 'sans-serif', background: '#1c1917', color: '#f5f5f4', minHeight: '100vh' }}>
-      <header style={{ textAlign: 'center', borderBottom: '1px solid #78350f', paddingBottom: '12px', marginBottom: '16px' }}>
-        <h1 style={{ color: '#f59e0b', margin: 0, fontSize: '20px' }}>NUSANTARA CHRONOVERSE</h1>
-        <p style={{ fontSize: '12px', color: '#a8a29e', margin: '4px 0 0 0' }}>{player.currentEra}</p>
+    <div style={{ maxWidth: '450px', margin: '0 auto', padding: '16px', fontFamily: 'sans-serif', background: '#12100e', color: '#f5f5f4', minHeight: '100vh', boxSizing: 'border-box' }}>
+      
+      {/* Header Game */}
+      <header style={{ textAlign: 'center', borderBottom: '1px solid #78350f', paddingBottom: '10px', marginBottom: '14px' }}>
+        <h1 style={{ color: '#f59e0b', margin: 0, fontSize: '18px', letterSpacing: '1px' }}>NUSANTARA CHRONOVERSE</h1>
+        <p style={{ fontSize: '11px', color: '#a8a29e', margin: '3px 0 0 0' }}>🗺️ Babak Petualangan: {player.currentEra}</p>
       </header>
 
-      {/* Box Status Pemain */}
-      <div style={{ background: '#292524', border: '1px solid #44403c', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '14px' }}>
-          <span>Pemain:</span>
-          <strong style={{ color: '#fbbf24' }}>{player.username}</strong>
+      {/* Panel Status Karakter */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+        <div style={{ background: '#1e1b18', border: '1px solid #44403c', borderRadius: '6px', padding: '10px', textAlign: 'center' }}>
+          <span style={{ fontSize: '10px', color: '#a8a29e', display: 'block' }}>REPUTASI ({TARGET_REPUTATION})</span>
+          <strong style={{ fontSize: '16px', color: player.reputation >= TARGET_REPUTATION ? '#34d399' : '#f59e0b' }}>
+            {player.reputation} Pt
+          </strong>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '14px' }}>
-          <span>Reputasi Target (50):</span>
-          <strong style={{ color: player.reputation >= TARGET_REPUTATION ? '#34d399' : '#f87171' }}>{player.reputation} Pt</strong>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-          <span>Keping Coin Target (150):</span>
-          <strong style={{ color: player.kepingCoin >= TARGET_COIN ? '#34d399' : '#fbbf24' }}>🪙 {player.kepingCoin}</strong>
+        <div style={{ background: '#1e1b18', border: '1px solid #44403c', borderRadius: '6px', padding: '10px', textAlign: 'center' }}>
+          <span style={{ fontSize: '10px', color: '#a8a29e', display: 'block' }}>KEPING COIN ({TARGET_COIN})</span>
+          <strong style={{ fontSize: '16px', color: '#fbbf24' }}>
+            🪙 {player.kepingCoin}
+          </strong>
         </div>
       </div>
 
-      {/* Banner Kelulusan */}
-      {isCompleted && (
-        <div style={{ background: '#065f46', border: '1px solid #10b981', borderRadius: '8px', padding: '12px', marginBottom: '16px', textAlign: 'center' }}>
-          <h3 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#a7f3d0' }}>👑 ERA KUTAI SELESAI</h3>
-          <p style={{ margin: 0, fontSize: '12px', color: '#ecfdf5' }}>
-            Aset NFT Prasasti Yupa telah tercatat di database! Siap melangkah ke Era Sriwijaya?
+      {/* Banner Selesai Era */}
+      {isCompleted ? (
+        <div style={{ background: '#065f46', border: '1px solid #10b981', borderRadius: '8px', padding: '12px', marginBottom: '14px', textAlign: 'center' }}>
+          <h3 style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#a7f3d0' }}>👑 ERA KUTAI DITAKLUKKAN!</h3>
+          <p style={{ margin: 0, fontSize: '11px', color: '#ecfdf5' }}>
+            Kisah petualanganmu terukir abadi. Siap berlayar menuju Era Sriwijaya?
+          </p>
+        </div>
+      ) : (
+        /* Kotak Narasi / Cerita Petualangan */
+        <div style={{ background: '#1c1917', border: '1px solid #78350f', borderRadius: '8px', padding: '14px', marginBottom: '14px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', color: '#d97706', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
+            📖 Kejadian Saat Ini:
+          </span>
+          <p style={{ fontSize: '13px', lineHeight: '1.5', color: '#e7e5e4', margin: 0 }}>
+            {adventureStory}
           </p>
         </div>
       )}
 
-      {/* Tombol Kegiatan */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '12px', color: '#d97706', textTransform: 'uppercase', margin: 0 }}>Kegiatan Kerajaan Kutai</h2>
-        
-        <button
-          onClick={handleUkirYupa}
-          style={{ padding: '12px', background: '#92400e', color: '#fff', border: '1px solid #b45309', borderRadius: '6px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}
-        >
-          <span>📜 Ukir Prasasti Yupa</span>
-          <small style={{ color: '#fef3c7' }}>+15 Coin, +5 Rep</small>
-        </button>
+      {/* Pilihan Tindakan Petualangan */}
+      {!isCompleted && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+          <span style={{ fontSize: '11px', color: '#a8a29e', textTransform: 'uppercase', fontWeight: 'bold' }}>
+            Tentukan Langkah Petualanganmu:
+          </span>
+          
+          {choices.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleChoice(item)}
+              style={{
+                padding: '12px',
+                background: '#292524',
+                color: '#fafaf9',
+                border: '1px solid #57534e',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontSize: '12px',
+                transition: 'all 0.2s',
+                lineHeight: '1.4'
+              }}
+            >
+              {item.text}
+              <div style={{ fontSize: '10px', color: '#fbbf24', marginTop: '4px' }}>
+                Hadiah: {item.repChange > 0 ? `+${item.repChange} Rep` : `${item.repChange} Rep`} | {item.coinChange > 0 ? `+${item.coinChange} Coin` : `${item.coinChange} Coin`}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
-        <button
-          onClick={handleTernakSapi}
-          style={{ padding: '12px', background: '#292524', color: '#fff', border: '1px solid #57534e', borderRadius: '6px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}
-        >
-          <span>🐄 Persembahkan Ternak Sapi</span>
-          <small style={{ color: '#6ee7b7' }}>+10 Rep, -20 Coin</small>
-        </button>
-      </div>
-
-      {/* Jurnal */}
-      <div style={{ background: '#0c0a09', border: '1px solid #292524', borderRadius: '8px', padding: '12px', height: '140px', overflowY: 'auto' }}>
-        <h3 style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#78716c' }}>JURNAL PERJALANAN</h3>
-        <div style={{ fontSize: '12px', lineHeight: '1.5' }}>
+      {/* Jurnal Riwayat Perjalanan */}
+      <div style={{ background: '#0c0a09', border: '1px solid #292524', borderRadius: '8px', padding: '10px', height: '120px', overflowY: 'auto' }}>
+        <h3 style={{ margin: '0 0 6px 0', fontSize: '10px', color: '#78716c', textTransform: 'uppercase' }}>Catatan Perjalanan</h3>
+        <div style={{ fontSize: '11px', lineHeight: '1.4', color: '#d6d3d1' }}>
           {logs.map((log, i) => (
-            <p key={i} style={{ margin: '0 0 6px 0', borderBottom: '1px solid #1c1917', paddingBottom: '4px' }}>
-              {log}
+            <p key={i} style={{ margin: '0 0 4px 0', borderBottom: '1px solid #1c1917', paddingBottom: '3px' }}>
+              • {log}
             </p>
           ))}
         </div>
       </div>
+
     </div>
   );
 }
